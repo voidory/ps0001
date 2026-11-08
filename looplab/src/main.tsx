@@ -1,6 +1,7 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import '@fontsource-variable/dm-sans';
+import '@fontsource-variable/jetbrains-mono';
 import 'katex/dist/katex.min.css';
 import './style.css';
 import App from './App';

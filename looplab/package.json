@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
     "idb": "^8.0.3",
     "katex": "^0.16.25",
     "react": "^19.2.0",
