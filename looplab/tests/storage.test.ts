@@ -1,0 +1,23 @@
+import 'fake-indexeddb/auto';
+import {IDBFactory} from 'fake-indexeddb';
+import {beforeEach,it,expect} from 'vitest';
+import {readFileSync} from 'node:fs';
+import {Store,exportBackup,validateBackup} from '../src/storage/store';
+import {type Item,emptyState,hash} from '../src/domain/model';
+const item=(JSON.parse(readFileSync('public/catalogue/R2.json','utf8')) as Item[])[0];
+beforeEach(()=>{globalThis.indexedDB=new IDBFactory();});
+async function setup(){const store=new Store();await store.open();await store.lease();const session=crypto.randomUUID(),event={id:crypto.randomUUID(),seq:1,session,itemId:item.id,at:new Date().toISOString(),kind:'present' as const,reason:'test',rehearsal:false,seed:1};const command={id:crypto.randomUUID(),expectedRevision:0,snapshot:item,event};await store.write(command);return {store,session,command};}
+it('roundtrips snapshots and drafts after reopening',async()=>{const {store}=await setup();await store.write({id:crypto.randomUUID(),expectedRevision:1,draft:{id:item.id,answer:'9007199254740993',scratch:'print("safe text")'}});const second=new Store();await second.open();expect((await second.read()).drafts[item.id].answer).toBe('9007199254740993');});
+it('makes command retries idempotent',async()=>{const {store,command}=await setup();await store.write(command);expect((await store.read()).events.length).toBe(1);});
+it('rolls back invalid submission atomically',async()=>{const {store,session}=await setup();await expect(store.write({id:crypto.randomUUID(),expectedRevision:1,event:{id:crypto.randomUUID(),seq:2,session,itemId:item.id,at:new Date().toISOString(),kind:'submit',input:'wrong',correct:true,external:false,grading:1}})).rejects.toThrow();expect((await store.read()).revision).toBe(1);});
+it('blocks second writer until lease expiry',async()=>{const {store}=await setup();const second=new Store();await second.open();expect(await second.lease()).toBe(false);expect(await second.lease(Date.now()+31000)).toBe(true);await expect(store.write({id:crypto.randomUUID(),expectedRevision:1,settings:emptyState().settings})).rejects.toThrow('lease');});
+it('rejects stale revisions',async()=>{const {store}=await setup();await expect(store.write({id:crypto.randomUUID(),expectedRevision:0,settings:emptyState().settings})).rejects.toThrow('State changed');});
+it('validates exact large integers through hash and backup',async()=>{const s=emptyState();const {contentHash:discarded,...body}=item;expect(discarded).toHaveLength(64);const big={...body,expected:'9007199254740993'};s.snapshots=[{...big,contentHash:await hash(big)}];const restored=await validateBackup(exportBackup(s));expect(restored.snapshots[0].expected).toBe('9007199254740993');});
+it('rejects tampered hashes without touching saved data',async()=>{const {store}=await setup();const s=await store.read();s.snapshots[0].expected='999';await expect(validateBackup(exportBackup(s))).rejects.toThrow('hash');expect((await store.read()).snapshots[0].expected).toBe(item.expected);});
+it('rejects unknown newer schema',async()=>{await expect(validateBackup(JSON.stringify({app:'LoopLab',version:2,contentVersion:1,state:emptyState()}))).rejects.toThrow();});
+it('validates normal event and snapshot roundtrip',async()=>{const {store}=await setup();const s=await store.read();expect(await validateBackup(exportBackup(s))).toEqual(s);});
+it('restores atomically and increments local revision',async()=>{const {store}=await setup();await store.replace(emptyState(),1);expect((await store.read()).revision).toBe(2);expect((await store.read()).events).toEqual([]);});
+it('rejects duplicate snapshot IDs on import',async()=>{const {store}=await setup();const s=await store.read();s.snapshots.push(item);await expect(validateBackup(exportBackup(s))).rejects.toThrow('Duplicate');});
+it('rejects forged grades in event backup',async()=>{const {store,session}=await setup();const s=await store.read();s.events.push({id:crypto.randomUUID(),seq:2,session,itemId:item.id,at:new Date().toISOString(),kind:'submit',input:item.expected,correct:false,external:false,grading:1});await expect(validateBackup(exportBackup(s))).rejects.toThrow('grade');});
+it('prevents immutable question replacement',async()=>{const {store}=await setup();await expect(store.write({id:crypto.randomUUID(),expectedRevision:1,snapshot:{...item,prompt:'changed'}})).rejects.toThrow('Immutable');});
+it('provides explicit ephemeral mode if IndexedDB is unavailable',async()=>{const saved=globalThis.indexedDB;Object.defineProperty(globalThis,'indexedDB',{configurable:true,value:undefined});const store=new Store();await store.open();expect(store.ephemeral).toBe(true);Object.defineProperty(globalThis,'indexedDB',{configurable:true,value:saved});});

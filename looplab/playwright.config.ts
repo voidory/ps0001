@@ -1,0 +1,3 @@
+import { defineConfig, devices } from '@playwright/test';
+const executable=process.env.LOOPLAB_CHROMIUM;
+export default defineConfig({testDir:'./tests/e2e',fullyParallel:false,workers:1,use:{baseURL:'http://127.0.0.1:4173'},projects:[{name:'chromium',use:{...devices['Desktop Chrome'],launchOptions:executable?{executablePath:executable,args:['--no-sandbox']}:undefined}},...(process.env.LOOPLAB_ALL_BROWSERS?[{name:'firefox',use:{...devices['Desktop Firefox']}},{name:'webkit',use:{...devices['Desktop Safari']}}]:[])],webServer:{command:'python3 scripts/serve_preview.py',port:4173,reuseExistingServer:!process.env.CI},reporter:[['list'],['html',{open:'never'}]]});

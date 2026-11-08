@@ -1,0 +1,11 @@
+# Architecture and content authoring
+
+`src/domain/model.ts` defines strict schemas, versions, canonical JSON/SHA-256 and xorshift32 PRNG vectors. `logic.ts` contains pure parsers, exact oracle, attempt reducer, evidence, deterministic selection and mock functions. `catalogue.ts` verifies build-produced chunk and instance hashes before allowing questions to enter practice.
+
+`scripts/build_catalogue.py` samples original versioned templates, solves them with short algorithms, cross-checks independent full tables/rational sums/matrix methods and executes the exact displayed Python. Each item retains decimal-string integer parameters and answers, content hash, group, output fingerprint, parameter-set ID, structural descriptors and provenance. Python subprocesses are trusted generation-time code only. P2 tolerance/output pairs share a group, and mathematical group deduplication excludes irrelevant random parameters.
+
+`src/storage/store.ts` serializes immutable snapshots and events, drafts, mocks and settings within IndexedDB transactions. Command IDs provide idempotence; every durable command verifies revision and the 30-second writer token. Leases renew every 10 seconds. Commands are serialized in the UI and `Saved` is set only after transaction completion. Restore is previewed and atomically replaces, never merges.
+
+The UI uses React's escaped text rendering and locally bundled KaTeX with `trust:false`. The meta CSP allows only self-hosted scripts/network/assets and permits inline stylesheet attributes needed by KaTeX/React. It forbids objects and form submission. There is no eval, browser Python, executable backup import or automatic user-code grading. Expected answers and solution JSX are not mounted until reveal or finalisation, although static content is inspectable by design.
+
+To add a template: define its schema/structural forms, implement the intended solver and genuinely independent validator, emit original rule/prompt/hints/code, add boundary and rejection tests, regenerate the catalogue, and run all suites. Never ship an unchecked generated item. Changes to semantics require new template/grading versions; preserve old immutable history rather than silently regrading it.
