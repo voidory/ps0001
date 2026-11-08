@@ -11,3 +11,5 @@ __pycache__/
 *build-spec.md
 AGENT-START-HERE.md
 *Architecture*Specification.md
+# Canonical application's generated catalogue (source is the compiler).
+/looplab/public/catalogue/

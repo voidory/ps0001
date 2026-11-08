@@ -1,43 +1,63 @@
 name: Verify and deploy LoopLab
+
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+
 permissions:
   contents: read
+
 concurrency:
   group: pages-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: looplab
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: looplab/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: npm install --no-audit --no-fund
-      - run: npm run test:python
-      - run: npm run build
-      - run: npm run lint && npm test
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - name: Install locked application dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify independent Python implementations
+        run: npm run test:python
+      - name: Compile verified catalogue and production application
+        run: npm run build
+      - name: Lint and test domain and storage
+        run: npm run lint && npm test
+      - name: Install Chromium and system libraries
+        run: npx playwright install --with-deps chromium
+      - name: Test production UI at root and repository subpath
+        run: npm run test:e2e
+      - name: Retain verification output
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: verification-and-bundle
           path: |
-            dist/
-            public/catalogue/manifest.json
-            playwright-report/
-      - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/main'
+            looplab/dist/
+            looplab/public/catalogue/manifest.json
+            looplab/playwright-report/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload only the built website
+        uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:
-          path: dist
+          path: looplab/dist
+
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: verify
@@ -49,6 +69,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy after enabling Settings → Pages → GitHub Actions
+      - name: Check GitHub Pages configuration
+        uses: actions/configure-pages@v5
+      - name: Deploy verified website
         id: deployment
         uses: actions/deploy-pages@v4
